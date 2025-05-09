@@ -14,7 +14,7 @@ body {
   background-color: black;
 }
 
-/* Custom scrollbar */
+/* 自定义滚动条 */
 ::-webkit-scrollbar {
   width: 8px;
 }
@@ -32,29 +32,36 @@ body {
   background: rgba(255, 255, 255, 0.5);
 }
 
-/* Animation for background images */
-.bg-image-container {
-  opacity: 0;
-  transform: translateY(100%);
-}
-
-.animate-slide-up {
-  animation: slideUp 1s ease-out forwards;
-}
-
-@keyframes slideUp {
-  0% {
-    transform: translateY(100%);
-    opacity: 0;
-  }
+/* 动画 */
+@keyframes bounce {
+  0%,
   100% {
-    transform: translateY(0);
-    opacity: 1;
+    transform: translateY(0) translateX(-50%);
   }
+  50% {
+    transform: translateY(-10px) translateX(-50%);
+  }
+}
+
+.animate-bounce {
+  animation: bounce 2s infinite;
 }
 
 @layer utilities {
   .text-balance {
     text-wrap: balance;
+  }
+
+  /* 滚动捕捉相关类 */
+  .snap-y {
+    scroll-snap-type: y mandatory;
+  }
+
+  .snap-start {
+    scroll-snap-align: start;
+  }
+
+  .snap-always {
+    scroll-snap-stop: always;
   }
 }
