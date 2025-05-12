@@ -1,5 +1,7 @@
 "use client"
 
+import type React from "react"
+
 import { useState, useEffect, useRef } from "react"
 import Image from "next/image"
 import { Play, Pause } from "lucide-react"
@@ -9,9 +11,12 @@ export default function Home() {
   const [isPlaying, setIsPlaying] = useState(false)
   const [progress, setProgress] = useState(0)
   const [activeIndex, setActiveIndex] = useState(0)
-  const [imagesLoaded, setImagesLoaded] = useState(true) // 默认设置为已加载
+  const [imagesLoaded, setImagesLoaded] = useState(true)
+  const [audioDuration, setAudioDuration] = useState(0)
+  const [isDragging, setIsDragging] = useState(false)
 
   const audioRef = useRef<HTMLAudioElement>(null)
+  const progressBarRef = useRef<HTMLDivElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const sectionRefs = useRef<(HTMLElement | null)[]>([])
 
@@ -26,6 +31,8 @@ export default function Home() {
 
   // 设置 Intersection Observer 来检测当前可见的部分
   useEffect(() => {
+    if (showWelcome) return // 如果欢迎界面显示，不初始化观察器
+
     const options = {
       root: null,
       rootMargin: "0px",
@@ -53,22 +60,72 @@ export default function Home() {
         if (section) observer.unobserve(section)
       })
     }
-  }, [activeIndex])
+  }, [activeIndex, showWelcome])
 
-  // 处理音频进度
+  // 处理音频加载和进度
   useEffect(() => {
     const audio = audioRef.current
     if (!audio) return
 
+    const handleLoadedMetadata = () => {
+      setAudioDuration(audio.duration)
+    }
+
     const updateProgress = () => {
-      if (audio.duration) {
+      if (!isDragging && audio.duration) {
         setProgress((audio.currentTime / audio.duration) * 100)
       }
     }
 
+    audio.addEventListener("loadedmetadata", handleLoadedMetadata)
     audio.addEventListener("timeupdate", updateProgress)
-    return () => audio.removeEventListener("timeupdate", updateProgress)
-  }, [])
+
+    return () => {
+      audio.removeEventListener("loadedmetadata", handleLoadedMetadata)
+      audio.removeEventListener("timeupdate", updateProgress)
+    }
+  }, [isDragging])
+
+  // 处理进度条点击和拖动
+  const handleProgressBarClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const progressBar = progressBarRef.current
+    const audio = audioRef.current
+    if (!progressBar || !audio) return
+
+    const rect = progressBar.getBoundingClientRect()
+    const clickPosition = (e.clientX - rect.left) / rect.width
+    const newTime = clickPosition * audio.duration
+
+    audio.currentTime = newTime
+    setProgress(clickPosition * 100)
+  }
+
+  const handleProgressBarMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    setIsDragging(true)
+    handleProgressBarClick(e)
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const progressBar = progressBarRef.current
+      const audio = audioRef.current
+      if (!progressBar || !audio) return
+
+      const rect = progressBar.getBoundingClientRect()
+      const clickPosition = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width))
+      const newTime = clickPosition * audio.duration
+
+      audio.currentTime = newTime
+      setProgress(clickPosition * 100)
+    }
+
+    const handleMouseUp = () => {
+      setIsDragging(false)
+      document.removeEventListener("mousemove", handleMouseMove)
+      document.removeEventListener("mouseup", handleMouseUp)
+    }
+
+    document.addEventListener("mousemove", handleMouseMove)
+    document.addEventListener("mouseup", handleMouseUp)
+  }
 
   // 切换音频播放/暂停
   const toggleAudio = () => {
@@ -120,6 +177,8 @@ export default function Home() {
 
   // 键盘导航
   useEffect(() => {
+    if (showWelcome) return // 如果欢迎界面显示，不添加键盘事件
+
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "ArrowDown" || e.key === "PageDown") {
         e.preventDefault()
@@ -132,8 +191,45 @@ export default function Home() {
 
     window.addEventListener("keydown", handleKeyDown)
     return () => window.removeEventListener("keydown", handleKeyDown)
-  }, [activeIndex])
+  }, [activeIndex, showWelcome])
 
+  // 格式化时间（秒 -> MM:SS）
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60)
+    const secs = Math.floor(seconds % 60)
+    return `${mins}:${secs < 10 ? "0" : ""}${secs}`
+  }
+
+  // 如果显示欢迎界面，只渲染欢迎界面
+  if (showWelcome) {
+    return (
+      <div className="fixed inset-0 flex items-center justify-center bg-gray-700">
+        <div className="bg-white rounded-lg shadow-xl overflow-hidden max-w-sm w-full mx-4">
+          <div className="w-full">
+            <Image
+              src={welcomeImagePath || "/placeholder.svg"}
+              alt="Welcome"
+              width={400}
+              height={200}
+              className="w-full h-auto"
+              priority
+            />
+          </div>
+          <div className="p-5 flex flex-col items-center">
+            <h1 className="text-black text-lg font-medium text-center mb-4">Welcome to my personal website!</h1>
+            <button
+              onClick={handleEnter}
+              className="px-5 py-1.5 bg-black text-white rounded transition-all duration-200 hover:bg-gray-800 text-sm"
+            >
+              Let&apos;s go!!!
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // 主页面内容
   return (
     <main className="relative">
       {/* 使用 scroll-snap 的滚动容器 */}
@@ -205,53 +301,33 @@ export default function Home() {
         ))}
       </div>
 
-      {/* 修改后的欢迎模态框 - 图片覆盖整个模态框，按钮在图片上 */}
-      {showWelcome && (
-        <div className="fixed inset-0 flex items-center justify-center z-50 bg-black/70">
-          <div className="relative bg-white rounded-lg overflow-hidden max-w-md w-full mx-4">
-            {/* 图片覆盖整个模态框 */}
-            <div className="relative w-full h-80">
-              <Image
-                src={welcomeImagePath || "/placeholder.svg"}
-                alt="Welcome"
-                fill
-                className="object-cover"
-                priority
-              />
-
-              {/* 半透明黑色遮罩，提高文字可读性 */}
-              <div className="absolute inset-0 bg-black/30"></div>
-
-              {/* 文字和按钮放在图片上方 */}
-              <div className="absolute inset-0 flex flex-col items-center justify-center p-6">
-                <h1 className="text-white text-2xl font-medium text-center mb-8 drop-shadow-md">
-                  Welcome to my life diary!
-                </h1>
-                <button
-                  onClick={handleEnter}
-                  className="px-6 py-2 bg-black/70 hover:bg-black text-white rounded transition-all duration-200 backdrop-blur-sm"
-                >
-                  Let&apos;s go!!!
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 音频播放器 */}
+      {/* 改进的音频播放器 */}
       <div className="fixed bottom-0 left-0 right-0 bg-black/60 backdrop-blur-sm p-3 z-40">
         <div className="max-w-screen-lg mx-auto flex items-center gap-4">
           <button onClick={toggleAudio} className="text-white transition-all duration-200 hover:text-gray-300">
             {isPlaying ? <Pause size={20} /> : <Play size={20} />}
           </button>
 
-          <div className="flex-1 h-1 bg-white/30 rounded-full overflow-hidden">
+          {/* 时间显示 */}
+          <div className="text-white text-xs opacity-80 w-12">
+            {audioRef.current ? formatTime(audioRef.current.currentTime) : "0:00"}
+          </div>
+
+          {/* 可拖动的进度条 */}
+          <div
+            ref={progressBarRef}
+            className="flex-1 h-2 bg-white/30 rounded-full overflow-hidden cursor-pointer group"
+            onClick={handleProgressBarClick}
+            onMouseDown={handleProgressBarMouseDown}
+          >
             <div
-              className="h-full bg-white transition-all duration-300 ease-linear"
+              className="h-full bg-white transition-all duration-100 group-hover:bg-blue-400"
               style={{ width: `${progress}%` }}
             ></div>
           </div>
+
+          {/* 总时长 */}
+          <div className="text-white text-xs opacity-80 w-12 text-right">{formatTime(audioDuration)}</div>
 
           <audio
             ref={audioRef}
