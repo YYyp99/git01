@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import Image from "next/image"
 import { Play, Pause, Volume2, VolumeX } from "lucide-react"
 
@@ -11,17 +11,17 @@ export default function Home() {
   const [isPlaying, setIsPlaying] = useState(false)
   const [progress, setProgress] = useState(0)
   const [activeIndex, setActiveIndex] = useState(0)
-  const [imagesLoaded, setImagesLoaded] = useState(true)
   const [audioDuration, setAudioDuration] = useState(0)
+  const [currentTime, setCurrentTime] = useState(0)
   const [isDragging, setIsDragging] = useState(false)
   const [isMuted, setIsMuted] = useState(false)
   const [volume, setVolume] = useState(1)
-  const [audioLoaded, setAudioLoaded] = useState(false)
 
   const audioRef = useRef<HTMLAudioElement>(null)
   const progressBarRef = useRef<HTMLDivElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const sectionRefs = useRef<(HTMLElement | null)[]>([])
+  const animationFrameRef = useRef<number | null>(null)
 
   // 本地图片路径 - 这些文件应该放在 public 文件夹中
   const backgroundImages = ["/bg1.jpg", "/bg2.jpg", "/bg3.jpg", "/bg4.jpg"]
@@ -32,25 +32,44 @@ export default function Home() {
   // 背景音乐路径 - 这个文件应该放在 public 文件夹中
   const audioPath = "/bg-music.mp3"
 
-  // 预加载音频
+  // 使用 requestAnimationFrame 更新进度条
+  const updateProgressBar = useCallback(() => {
+    const audio = audioRef.current
+    if (!audio || isDragging) {
+      animationFrameRef.current = requestAnimationFrame(updateProgressBar)
+      return
+    }
+
+    if (audio.duration) {
+      setCurrentTime(audio.currentTime)
+      setProgress((audio.currentTime / audio.duration) * 100)
+    }
+
+    animationFrameRef.current = requestAnimationFrame(updateProgressBar)
+  }, [isDragging])
+
+  // 初始化音频和进度条更新
   useEffect(() => {
     const audio = audioRef.current
     if (!audio) return
 
-    const handleCanPlayThrough = () => {
-      setAudioLoaded(true)
-      console.log("Audio loaded and ready to play")
+    const handleLoadedMetadata = () => {
+      console.log("Audio metadata loaded, duration:", audio.duration)
+      setAudioDuration(audio.duration)
     }
 
-    audio.addEventListener("canplaythrough", handleCanPlayThrough)
+    audio.addEventListener("loadedmetadata", handleLoadedMetadata)
 
-    // 预加载音频
-    audio.load()
+    // 开始进度条更新循环
+    animationFrameRef.current = requestAnimationFrame(updateProgressBar)
 
     return () => {
-      audio.removeEventListener("canplaythrough", handleCanPlayThrough)
+      audio.removeEventListener("loadedmetadata", handleLoadedMetadata)
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current)
+      }
     }
-  }, [])
+  }, [updateProgressBar])
 
   // 设置 Intersection Observer 来检测当前可见的部分
   useEffect(() => {
@@ -85,32 +104,6 @@ export default function Home() {
     }
   }, [activeIndex, showWelcome])
 
-  // 处理音频加载和进度
-  useEffect(() => {
-    const audio = audioRef.current
-    if (!audio) return
-
-    const handleLoadedMetadata = () => {
-      setAudioDuration(audio.duration)
-      setAudioLoaded(true)
-      console.log("Audio metadata loaded, duration:", audio.duration)
-    }
-
-    const updateProgress = () => {
-      if (!isDragging && audio.duration) {
-        setProgress((audio.currentTime / audio.duration) * 100)
-      }
-    }
-
-    audio.addEventListener("loadedmetadata", handleLoadedMetadata)
-    audio.addEventListener("timeupdate", updateProgress)
-
-    return () => {
-      audio.removeEventListener("loadedmetadata", handleLoadedMetadata)
-      audio.removeEventListener("timeupdate", updateProgress)
-    }
-  }, [isDragging])
-
   // 处理进度条点击和拖动
   const handleProgressBarClick = (e: React.MouseEvent<HTMLDivElement>) => {
     const progressBar = progressBarRef.current
@@ -122,6 +115,7 @@ export default function Home() {
     const newTime = clickPosition * audio.duration
 
     audio.currentTime = newTime
+    setCurrentTime(newTime)
     setProgress(clickPosition * 100)
   }
 
@@ -139,6 +133,7 @@ export default function Home() {
       const newTime = clickPosition * audio.duration
 
       audio.currentTime = newTime
+      setCurrentTime(newTime)
       setProgress(clickPosition * 100)
     }
 
@@ -184,7 +179,6 @@ export default function Home() {
         })
         .catch((error) => {
           console.error("Error playing audio:", error)
-          // 如果自动播放被阻止，显示一个提示或按钮让用户手动播放
           setIsPlaying(false)
         })
     }
@@ -286,15 +280,7 @@ export default function Home() {
     return (
       <div className="fixed inset-0 flex items-center justify-center bg-gray-700">
         {/* 隐藏的音频元素，预加载音频 */}
-        <audio
-          ref={audioRef}
-          src={audioPath}
-          loop
-          preload="auto"
-          onPlay={() => setIsPlaying(true)}
-          onPause={() => setIsPlaying(false)}
-          className="hidden"
-        />
+        <audio ref={audioRef} src={audioPath} loop preload="auto" className="hidden" />
 
         <div className="bg-white rounded-lg shadow-xl overflow-hidden max-w-sm w-full mx-4">
           <div className="w-full">
@@ -402,9 +388,7 @@ export default function Home() {
           </button>
 
           {/* 时间显示 */}
-          <div className="text-white text-xs opacity-80 w-12">
-            {audioRef.current ? formatTime(audioRef.current.currentTime) : "0:00"}
-          </div>
+          <div className="text-white text-xs opacity-80 w-12">{formatTime(currentTime)}</div>
 
           {/* 可拖动的进度条 */}
           <div
