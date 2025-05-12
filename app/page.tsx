@@ -225,7 +225,7 @@ export default function Home() {
               {/* 文字和按钮放在图片上方 */}
               <div className="absolute inset-0 flex flex-col items-center justify-center p-6">
                 <h1 className="text-white text-2xl font-medium text-center mb-8 drop-shadow-md">
-                  Welcome to my personal website!
+                  Welcome to my life diary!
                 </h1>
                 <button
                   onClick={handleEnter}
