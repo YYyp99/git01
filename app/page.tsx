@@ -9,7 +9,7 @@ export default function Home() {
   const [isPlaying, setIsPlaying] = useState(false)
   const [progress, setProgress] = useState(0)
   const [activeIndex, setActiveIndex] = useState(0)
-  const [imagesLoaded, setImagesLoaded] = useState(false)
+  const [imagesLoaded, setImagesLoaded] = useState(true) // 默认设置为已加载
 
   const audioRef = useRef<HTMLAudioElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
@@ -23,42 +23,6 @@ export default function Home() {
 
   // 背景音乐路径 - 这个文件应该放在 public 文件夹中
   const audioPath = "/bg-music.mp3"
-
-  // 完全重写图片预加载逻辑，避免任何可能的解构错误
-  useEffect(() => {
-    // 跳过预加载，直接设置为已加载
-    setImagesLoaded(true)
-
-    // 注释掉原来的预加载逻辑，以避免错误
-    /*
-    let loadedCount = 0
-    const totalImages = backgroundImages.length + 1 // +1 for welcome image
-
-    const preloadImage = (src: string) => {
-      const img = new Image()
-      img.src = src
-      img.onload = () => {
-        loadedCount++
-        if (loadedCount === totalImages) {
-          setImagesLoaded(true)
-        }
-      }
-      img.onerror = () => {
-        loadedCount++
-        console.error(`Failed to load image: ${src}`)
-        if (loadedCount === totalImages) {
-          setImagesLoaded(true)
-        }
-      }
-    }
-
-    // 预加载欢迎图片
-    preloadImage(welcomeImagePath)
-
-    // 预加载背景图片
-    backgroundImages.forEach((src) => preloadImage(src))
-    */
-  }, [backgroundImages.length, welcomeImagePath])
 
   // 设置 Intersection Observer 来检测当前可见的部分
   useEffect(() => {
@@ -241,20 +205,36 @@ export default function Home() {
         ))}
       </div>
 
-      {/* 欢迎模态框 */}
+      {/* 修改后的欢迎模态框 - 图片覆盖整个模态框，按钮在图片上 */}
       {showWelcome && (
         <div className="fixed inset-0 flex items-center justify-center z-50 bg-black/70">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 flex flex-col items-center">
-            <div className="w-full mb-4 relative h-48">
-              <Image src={welcomeImagePath || "/placeholder.svg"} alt="Welcome" fill className="object-cover rounded" />
+          <div className="relative bg-white rounded-lg overflow-hidden max-w-md w-full mx-4">
+            {/* 图片覆盖整个模态框 */}
+            <div className="relative w-full h-80">
+              <Image
+                src={welcomeImagePath || "/placeholder.svg"}
+                alt="Welcome"
+                fill
+                className="object-cover"
+                priority
+              />
+
+              {/* 半透明黑色遮罩，提高文字可读性 */}
+              <div className="absolute inset-0 bg-black/30"></div>
+
+              {/* 文字和按钮放在图片上方 */}
+              <div className="absolute inset-0 flex flex-col items-center justify-center p-6">
+                <h1 className="text-white text-2xl font-medium text-center mb-8 drop-shadow-md">
+                  Welcome to my personal website!
+                </h1>
+                <button
+                  onClick={handleEnter}
+                  className="px-6 py-2 bg-black/70 hover:bg-black text-white rounded transition-all duration-200 backdrop-blur-sm"
+                >
+                  Let&apos;s go!!!
+                </button>
+              </div>
             </div>
-            <h1 className="text-black text-xl font-medium text-center mb-6">Welcome to my personal website!</h1>
-            <button
-              onClick={handleEnter}
-              className="px-6 py-2 bg-black text-white rounded transition-all duration-200 hover:bg-gray-800"
-            >
-              Let&apos;s go!!!
-            </button>
           </div>
         </div>
       )}
@@ -299,8 +279,6 @@ export default function Home() {
           ))}
         </div>
       </div>
-
-      {/* 加载指示器 - 已移除，因为我们跳过了预加载 */}
     </main>
   )
 }
