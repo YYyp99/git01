@@ -9,24 +9,56 @@ export default function Home() {
   const [isPlaying, setIsPlaying] = useState(false)
   const [progress, setProgress] = useState(0)
   const [activeIndex, setActiveIndex] = useState(0)
+  const [imagesLoaded, setImagesLoaded] = useState(false)
 
   const audioRef = useRef<HTMLAudioElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const sectionRefs = useRef<(HTMLElement | null)[]>([])
 
-  // 在线托管的背景图片 URLs - 请替换为您自己的图片链接
-  const backgroundImages = [
-    "https://images.unsplash.com/photo-1506744038136-46273834b3fb", // 示例图片 1
-    "https://images.unsplash.com/photo-1511884642898-4c92249e20b6", // 示例图片 2
-    "https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05", // 示例图片 3
-    "https://images.unsplash.com/photo-1497436072909-60f360e1d4b1", // 示例图片 4
-  ]
+  // 本地图片路径 - 这些文件应该放在 public 文件夹中
+  const backgroundImages = ["/bg1.jpg", "/bg2.jpg", "/bg3.jpg", "/bg4.jpg"]
 
-  // 在线托管的欢迎图片 URL - 请替换为您自己的图片链接
-  const welcomeImageUrl = "https://images.unsplash.com/photo-1518655048521-f130df041f66"
+  // 欢迎图片路径 - 这个文件应该放在 public 文件夹中
+  const welcomeImagePath = "/welcome.jpg"
 
-  // 在线托管的音频 URL - 请替换为您自己的音频链接
-  const audioUrl = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3"
+  // 背景音乐路径 - 这个文件应该放在 public 文件夹中
+  const audioPath = "/bg-music.mp3"
+
+  // 完全重写图片预加载逻辑，避免任何可能的解构错误
+  useEffect(() => {
+    // 跳过预加载，直接设置为已加载
+    setImagesLoaded(true)
+
+    // 注释掉原来的预加载逻辑，以避免错误
+    /*
+    let loadedCount = 0
+    const totalImages = backgroundImages.length + 1 // +1 for welcome image
+
+    const preloadImage = (src: string) => {
+      const img = new Image()
+      img.src = src
+      img.onload = () => {
+        loadedCount++
+        if (loadedCount === totalImages) {
+          setImagesLoaded(true)
+        }
+      }
+      img.onerror = () => {
+        loadedCount++
+        console.error(`Failed to load image: ${src}`)
+        if (loadedCount === totalImages) {
+          setImagesLoaded(true)
+        }
+      }
+    }
+
+    // 预加载欢迎图片
+    preloadImage(welcomeImagePath)
+
+    // 预加载背景图片
+    backgroundImages.forEach((src) => preloadImage(src))
+    */
+  }, [backgroundImages.length, welcomeImagePath])
 
   // 设置 Intersection Observer 来检测当前可见的部分
   useEffect(() => {
@@ -82,7 +114,9 @@ export default function Home() {
     if (isPlaying) {
       audio.pause()
     } else {
-      audio.play()
+      audio.play().catch(() => {
+        console.log("Auto-play prevented by browser")
+      })
     }
     setIsPlaying(!isPlaying)
   }
@@ -93,7 +127,10 @@ export default function Home() {
     // 进入网站时自动播放音频
     const audio = audioRef.current
     if (audio) {
-      audio.play().catch((e) => console.log("Auto-play prevented:", e))
+      audio.play().catch(() => {
+        console.log("Auto-play prevented by browser")
+        setIsPlaying(false)
+      })
       setIsPlaying(true)
     }
   }
@@ -117,6 +154,22 @@ export default function Home() {
     }
   }
 
+  // 键盘导航
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "ArrowDown" || e.key === "PageDown") {
+        e.preventDefault()
+        scrollToNext()
+      } else if (e.key === "ArrowUp" || e.key === "PageUp") {
+        e.preventDefault()
+        scrollToPrevious()
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [activeIndex])
+
   return (
     <main className="relative">
       {/* 使用 scroll-snap 的滚动容器 */}
@@ -136,7 +189,6 @@ export default function Home() {
                 fill
                 priority={index <= activeIndex + 1} // 预加载当前和下一张图片
                 className="object-cover"
-                unoptimized // 使用未经优化的图像以支持外部URL
               />
             </div>
 
@@ -194,13 +246,7 @@ export default function Home() {
         <div className="fixed inset-0 flex items-center justify-center z-50 bg-black/70">
           <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 flex flex-col items-center">
             <div className="w-full mb-4 relative h-48">
-              <Image
-                src={welcomeImageUrl || "/placeholder.svg"}
-                alt="Welcome"
-                fill
-                className="object-cover rounded"
-                unoptimized
-              />
+              <Image src={welcomeImagePath || "/placeholder.svg"} alt="Welcome" fill className="object-cover rounded" />
             </div>
             <h1 className="text-black text-xl font-medium text-center mb-6">Welcome to my personal website!</h1>
             <button
@@ -229,7 +275,7 @@ export default function Home() {
 
           <audio
             ref={audioRef}
-            src={audioUrl}
+            src={audioPath}
             loop
             onPlay={() => setIsPlaying(true)}
             onPause={() => setIsPlaying(false)}
@@ -253,6 +299,8 @@ export default function Home() {
           ))}
         </div>
       </div>
+
+      {/* 加载指示器 - 已移除，因为我们跳过了预加载 */}
     </main>
   )
 }
