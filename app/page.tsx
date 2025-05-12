@@ -294,7 +294,7 @@ export default function Home() {
             />
           </div>
           <div className="p-5 flex flex-col items-center">
-            <h1 className="text-black text-lg font-medium text-center mb-4">Welcome to my personal website!</h1>
+            <h1 className="text-black text-lg font-medium text-center mb-4">👋 欢迎光临小杨日记！📝✨</h1>
             <button
               onClick={handleEnter}
               className="px-5 py-1.5 bg-black text-white rounded transition-all duration-200 hover:bg-gray-800 text-sm"
