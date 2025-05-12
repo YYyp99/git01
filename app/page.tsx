@@ -4,7 +4,7 @@ import type React from "react"
 
 import { useState, useEffect, useRef } from "react"
 import Image from "next/image"
-import { Play, Pause } from "lucide-react"
+import { Play, Pause, Volume2, VolumeX } from "lucide-react"
 
 export default function Home() {
   const [showWelcome, setShowWelcome] = useState(true)
@@ -14,6 +14,9 @@ export default function Home() {
   const [imagesLoaded, setImagesLoaded] = useState(true)
   const [audioDuration, setAudioDuration] = useState(0)
   const [isDragging, setIsDragging] = useState(false)
+  const [isMuted, setIsMuted] = useState(false)
+  const [volume, setVolume] = useState(1)
+  const [audioLoaded, setAudioLoaded] = useState(false)
 
   const audioRef = useRef<HTMLAudioElement>(null)
   const progressBarRef = useRef<HTMLDivElement>(null)
@@ -28,6 +31,26 @@ export default function Home() {
 
   // 背景音乐路径 - 这个文件应该放在 public 文件夹中
   const audioPath = "/bg-music.mp3"
+
+  // 预加载音频
+  useEffect(() => {
+    const audio = audioRef.current
+    if (!audio) return
+
+    const handleCanPlayThrough = () => {
+      setAudioLoaded(true)
+      console.log("Audio loaded and ready to play")
+    }
+
+    audio.addEventListener("canplaythrough", handleCanPlayThrough)
+
+    // 预加载音频
+    audio.load()
+
+    return () => {
+      audio.removeEventListener("canplaythrough", handleCanPlayThrough)
+    }
+  }, [])
 
   // 设置 Intersection Observer 来检测当前可见的部分
   useEffect(() => {
@@ -69,6 +92,8 @@ export default function Home() {
 
     const handleLoadedMetadata = () => {
       setAudioDuration(audio.duration)
+      setAudioLoaded(true)
+      console.log("Audio metadata loaded, duration:", audio.duration)
     }
 
     const updateProgress = () => {
@@ -134,26 +159,74 @@ export default function Home() {
 
     if (isPlaying) {
       audio.pause()
+      setIsPlaying(false)
     } else {
-      audio.play().catch(() => {
-        console.log("Auto-play prevented by browser")
-      })
+      playAudio()
     }
-    setIsPlaying(!isPlaying)
+  }
+
+  // 播放音频的函数
+  const playAudio = () => {
+    const audio = audioRef.current
+    if (!audio) return
+
+    // 确保音量设置正确
+    audio.volume = isMuted ? 0 : volume
+
+    // 使用 Promise 处理播放
+    const playPromise = audio.play()
+
+    if (playPromise !== undefined) {
+      playPromise
+        .then(() => {
+          console.log("Audio started playing successfully")
+          setIsPlaying(true)
+        })
+        .catch((error) => {
+          console.error("Error playing audio:", error)
+          // 如果自动播放被阻止，显示一个提示或按钮让用户手动播放
+          setIsPlaying(false)
+        })
+    }
+  }
+
+  // 切换静音
+  const toggleMute = () => {
+    const audio = audioRef.current
+    if (!audio) return
+
+    const newMutedState = !isMuted
+    setIsMuted(newMutedState)
+    audio.muted = newMutedState
+  }
+
+  // 调整音量
+  const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const audio = audioRef.current
+    if (!audio) return
+
+    const newVolume = Number.parseFloat(e.target.value)
+    setVolume(newVolume)
+    audio.volume = newVolume
+
+    // 如果音量为0，设置为静音；如果音量大于0且当前是静音，取消静音
+    if (newVolume === 0) {
+      setIsMuted(true)
+      audio.muted = true
+    } else if (isMuted) {
+      setIsMuted(false)
+      audio.muted = false
+    }
   }
 
   // 关闭欢迎模态框并开始播放音频
   const handleEnter = () => {
     setShowWelcome(false)
-    // 进入网站时自动播放音频
-    const audio = audioRef.current
-    if (audio) {
-      audio.play().catch(() => {
-        console.log("Auto-play prevented by browser")
-        setIsPlaying(false)
-      })
-      setIsPlaying(true)
-    }
+
+    // 使用 setTimeout 确保在DOM更新后尝试播放音频
+    setTimeout(() => {
+      playAudio()
+    }, 100)
   }
 
   // 滚动到指定部分
@@ -186,6 +259,14 @@ export default function Home() {
       } else if (e.key === "ArrowUp" || e.key === "PageUp") {
         e.preventDefault()
         scrollToPrevious()
+      } else if (e.key === " " || e.key === "k") {
+        // 空格键或K键切换播放/暂停
+        e.preventDefault()
+        toggleAudio()
+      } else if (e.key === "m") {
+        // M键切换静音
+        e.preventDefault()
+        toggleMute()
       }
     }
 
@@ -204,6 +285,17 @@ export default function Home() {
   if (showWelcome) {
     return (
       <div className="fixed inset-0 flex items-center justify-center bg-gray-700">
+        {/* 隐藏的音频元素，预加载音频 */}
+        <audio
+          ref={audioRef}
+          src={audioPath}
+          loop
+          preload="auto"
+          onPlay={() => setIsPlaying(true)}
+          onPause={() => setIsPlaying(false)}
+          className="hidden"
+        />
+
         <div className="bg-white rounded-lg shadow-xl overflow-hidden max-w-sm w-full mx-4">
           <div className="w-full">
             <Image
@@ -304,6 +396,7 @@ export default function Home() {
       {/* 改进的音频播放器 */}
       <div className="fixed bottom-0 left-0 right-0 bg-black/60 backdrop-blur-sm p-3 z-40">
         <div className="max-w-screen-lg mx-auto flex items-center gap-4">
+          {/* 播放/暂停按钮 */}
           <button onClick={toggleAudio} className="text-white transition-all duration-200 hover:text-gray-300">
             {isPlaying ? <Pause size={20} /> : <Play size={20} />}
           </button>
@@ -329,10 +422,30 @@ export default function Home() {
           {/* 总时长 */}
           <div className="text-white text-xs opacity-80 w-12 text-right">{formatTime(audioDuration)}</div>
 
+          {/* 音量控制 */}
+          <div className="flex items-center gap-2">
+            <button onClick={toggleMute} className="text-white transition-all duration-200 hover:text-gray-300">
+              {isMuted ? <VolumeX size={18} /> : <Volume2 size={18} />}
+            </button>
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.01"
+              value={volume}
+              onChange={handleVolumeChange}
+              className="w-16 h-1 bg-white/30 rounded-full appearance-none cursor-pointer"
+              style={{
+                backgroundImage: `linear-gradient(to right, white ${volume * 100}%, rgba(255,255,255,0.3) ${volume * 100}%)`,
+              }}
+            />
+          </div>
+
           <audio
             ref={audioRef}
             src={audioPath}
             loop
+            preload="auto"
             onPlay={() => setIsPlaying(true)}
             onPause={() => setIsPlaying(false)}
             className="hidden"
