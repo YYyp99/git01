@@ -24,7 +24,7 @@ export default function Home() {
   const animationFrameRef = useRef<number | null>(null)
 
   // 本地图片路径 - 这些文件应该放在 public 文件夹中
-  const backgroundImages = ["/bg1.jpg", "/bg2.jpg", "/bg3.jpg", "/bg4.jpg"]
+  const backgroundImages = ["/bg1.jpg", "/bg2.jpg", "/bg3.jpg", "/bg4.jpg", "/bg5.jpg", "/bg6.jpg", "/bg7.jpg", "/bg8.jpg"]
 
   // 欢迎图片路径 - 这个文件应该放在 public 文件夹中
   const welcomeImagePath = "/welcome.jpg"
